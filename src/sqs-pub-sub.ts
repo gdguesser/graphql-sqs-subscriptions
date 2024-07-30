@@ -124,19 +124,12 @@ export class SQSPubSub implements PubSubEngine {
       WaitTimeSeconds: 20
     };
 
-    console.log('params: ', params);
-
     try {
       const data = await this.receiveMessage(params);
 
-      console.log('data: ', data);
-      console.log('data.Messages: ', data.Messages);
-
       if (data && data.Messages) {
         for (const message of data.Messages) {
-          console.log('message: ', message);
           const messageAttributes = message.MessageAttributes;
-          console.log('messageAttributes: ', messageAttributes);
           if (messageAttributes && messageAttributes[PUB_SUB_MESSAGE_ATTRIBUTE] && messageAttributes[PUB_SUB_MESSAGE_ATTRIBUTE].StringValue === triggerName) {
             await this.deleteMessage(message.ReceiptHandle);
             onMessage(JSON.parse(message.Body));

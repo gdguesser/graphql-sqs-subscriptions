@@ -143,12 +143,18 @@ export class SQSPubSub implements PubSubEngine {
         await this.createQueue();
       }
 
+      console.log('this.queueUrl: ', this.queueUrl);
+
       const params = {
         MessageAttributeNames: [PUB_SUB_MESSAGE_ATTRIBUTE],
         QueueUrl: this.queueUrl
       };
 
+      console.log('params: ', params);
+
       const data = await this.receiveMessage(params);
+
+      console.log('data: ', data);
 
       if (
         data &&

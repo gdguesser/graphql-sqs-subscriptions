@@ -1,7 +1,7 @@
 import aws, { AWSError, SQS } from "aws-sdk";
 import { PubSubEngine } from "graphql-subscriptions";
 import { PubSubAsyncIterator } from "graphql-subscriptions/dist/pubsub-async-iterator";
-import uuid from "uuid";
+import { v4 as uuid } from "uuid";
 import { errorHandler } from "./utils";
 
 const AWS_SDK_API_VERSION = "2012-11-05";
@@ -27,7 +27,7 @@ export class SQSPubSub implements PubSubEngine {
     if (this.queueUrl) return;
 
     const params = {
-      QueueName: `${process.env.NODE_ENV || "local"}-${uuid.v4()}.fifo`,
+      QueueName: `${process.env.NODE_ENV || "local"}-${uuid()}.fifo`,
       Attributes: {
         FifoQueue: "true"
       }
@@ -79,7 +79,7 @@ export class SQSPubSub implements PubSubEngine {
       QueueUrl: this.queueUrl,
       MessageBody: JSON.stringify(payload),
       MessageGroupId: triggerName,
-      MessageDeduplicationId: uuid.v4(),
+      MessageDeduplicationId: uuid(),
       MessageAttributes: {
         [PUB_SUB_MESSAGE_ATTRIBUTE]: {
           DataType: "String",
@@ -117,9 +117,6 @@ export class SQSPubSub implements PubSubEngine {
       await this.createQueue();
     }
 
-
-    console.log('this.queueUrl: ', this.queueUrl);
-
     const params = {
       MessageAttributeNames: [PUB_SUB_MESSAGE_ATTRIBUTE],
       QueueUrl: this.queueUrl,
@@ -127,16 +124,13 @@ export class SQSPubSub implements PubSubEngine {
       WaitTimeSeconds: 20
     };
 
-    console.log('params: ', params);
-
     try {
       const data = await this.receiveMessage(params);
 
-      console.log('data: ', data);
-
       if (data && data.Messages) {
         for (const message of data.Messages) {
-          if (message.MessageAttributes && message.MessageAttributes[PUB_SUB_MESSAGE_ATTRIBUTE]?.StringValue === triggerName) {
+          const messageAttributes = message.MessageAttributes;
+          if (messageAttributes && messageAttributes[PUB_SUB_MESSAGE_ATTRIBUTE] && messageAttributes[PUB_SUB_MESSAGE_ATTRIBUTE].StringValue === triggerName) {
             await this.deleteMessage(message.ReceiptHandle);
             onMessage(JSON.parse(message.Body));
           }

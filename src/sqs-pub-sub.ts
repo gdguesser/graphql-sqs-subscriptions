@@ -9,15 +9,14 @@ const PUB_SUB_MESSAGE_ATTRIBUTE = "SQSPubSubTriggerName";
 
 export class SQSPubSub implements PubSubEngine {
   public sqs: SQS;
-
   private queueUrl: string;
   private stopped: boolean;
   private triggerName: string;
 
-  public constructor(config: SQS.Types.ClientConfiguration = {}) {
+  public constructor(config: SQS.Types.ClientConfiguration = {}, queueUrl?: string) {
     aws.config.update(config);
-
     this.sqs = new aws.SQS({ apiVersion: AWS_SDK_API_VERSION });
+    this.queueUrl = queueUrl;
   }
 
   public asyncIterator = <T>(triggers: string | string[]): AsyncIterator<T> => {
@@ -25,39 +24,32 @@ export class SQSPubSub implements PubSubEngine {
   };
 
   public createQueue = async (): Promise<void> => {
+    if (this.queueUrl) return;
+
     const params = {
-      QueueName: `${process.env.NODE_ENV || "local"}-${uuid()}.fifo`,
+      QueueName: `${process.env.NODE_ENV || "local"}-${uuid.v4()}.fifo`,
       Attributes: {
         FifoQueue: "true"
       }
     };
 
     try {
-      await this.sqs
-        .createQueue(
-          params,
-          (err: AWSError, { QueueUrl = "" }: SQS.Types.CreateQueueResult) => {
-            if (err) {
-              console.error(err);
-            }
-
-            this.queueUrl = QueueUrl;
-          }
-        )
-        .promise();
+      const result = await this.sqs.createQueue(params).promise();
+      this.queueUrl = result.QueueUrl;
     } catch (error) {
       console.error(error);
     }
   };
 
   public deleteQueue = async (): Promise<void> => {
+    if (!this.queueUrl) return;
+
     const params = {
       QueueUrl: this.queueUrl
     };
 
     try {
-      await this.sqs.deleteQueue(params, errorHandler).promise();
-
+      await this.sqs.deleteQueue(params).promise();
       this.queueUrl = null;
     } catch (error) {
       console.error(error);
@@ -71,7 +63,7 @@ export class SQSPubSub implements PubSubEngine {
     };
 
     try {
-      await this.sqs.deleteMessage(params, errorHandler).promise();
+      await this.sqs.deleteMessage(params).promise();
     } catch (error) {
       console.error(error);
     }
@@ -79,92 +71,69 @@ export class SQSPubSub implements PubSubEngine {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public publish = async (triggerName: string, payload: any): Promise<void> => {
-    try {
-      if (!this.queueUrl) {
-        await this.createQueue();
-      }
+    if (!this.queueUrl) {
+      await this.createQueue();
+    }
 
-      const params: SQS.Types.SendMessageRequest = {
-        QueueUrl: this.queueUrl,
-        MessageBody: JSON.stringify(payload),
-        MessageGroupId: triggerName,
-        MessageDeduplicationId: uuid(),
-        MessageAttributes: {
-          [PUB_SUB_MESSAGE_ATTRIBUTE]: {
-            DataType: "String",
-            StringValue: triggerName
-          }
+    const params: SQS.Types.SendMessageRequest = {
+      QueueUrl: this.queueUrl,
+      MessageBody: JSON.stringify(payload),
+      MessageGroupId: triggerName,
+      MessageDeduplicationId: uuid.v4(),
+      MessageAttributes: {
+        [PUB_SUB_MESSAGE_ATTRIBUTE]: {
+          DataType: "String",
+          StringValue: triggerName
         }
-      };
+      }
+    };
 
-      await this.sqs.sendMessage(params, errorHandler).promise();
+    try {
+      await this.sqs.sendMessage(params).promise();
     } catch (error) {
       console.error(error);
     }
   };
 
-  public subscribe = (
-    triggerName: string,
-    onMessage: Function
-  ): Promise<number> => {
-    try {
-      this.poll(triggerName, onMessage);
-
-      return Promise.resolve(1);
-    } catch (error) {
-      console.error(error);
-    }
+  public subscribe = (triggerName: string, onMessage: Function): Promise<number> => {
+    this.poll(triggerName, onMessage);
+    return Promise.resolve(1);
   };
 
   public unsubscribe = async (): Promise<void> => {
     if (!this.stopped) {
       this.stopped = true;
-
-      try {
-        await this.deleteQueue();
-      } catch (error) {
-        console.error(error);
-      }
-
+      await this.deleteQueue();
       this.stopped = false;
     }
   };
 
-  private readonly poll = async (
-    triggerName: string,
-    onMessage: Function
-  ): Promise<void> => {
+  private readonly poll = async (triggerName: string, onMessage: Function): Promise<void> => {
     if (this.stopped) {
       return;
     }
 
+    if (!this.queueUrl) {
+      await this.createQueue();
+    }
+
+    const params = {
+      MessageAttributeNames: [PUB_SUB_MESSAGE_ATTRIBUTE],
+      QueueUrl: this.queueUrl,
+      MaxNumberOfMessages: 10,
+      WaitTimeSeconds: 20
+    };
+
     try {
-      if (!this.queueUrl) {
-        await this.createQueue();
-      }
-
-      console.log('this.queueUrl: ', this.queueUrl);
-
-      const params = {
-        MessageAttributeNames: [PUB_SUB_MESSAGE_ATTRIBUTE],
-        QueueUrl: this.queueUrl
-      };
-
-      console.log('params: ', params);
-
       const data = await this.receiveMessage(params);
 
-      console.log('data: ', data);
-
-      if (
-        data &&
-        data.Messages &&
-        data.Messages[0].MessageAttributes[PUB_SUB_MESSAGE_ATTRIBUTE]
-          .StringValue === triggerName
-      ) {
-        await this.deleteMessage(data.Messages[0].ReceiptHandle);
-
-        onMessage(JSON.parse(data.Messages[0].Body));
+      if (data && data.Messages) {
+        for (const message of data.Messages) {
+          if (message.MessageAttributes && message.MessageAttributes[PUB_SUB_MESSAGE_ATTRIBUTE]?.StringValue === triggerName) {
+            await this.deleteMessage(message.ReceiptHandle);
+            onMessage(JSON.parse(message.Body));
+          }
+        }
       }
     } catch (error) {
       console.error(error);
@@ -173,13 +142,12 @@ export class SQSPubSub implements PubSubEngine {
     setImmediate(() => this.poll(triggerName, onMessage));
   };
 
-  private readonly receiveMessage = async (
-    params: SQS.Types.ReceiveMessageRequest
-  ): Promise<SQS.Types.ReceiveMessageResult> => {
+  private readonly receiveMessage = async (params: SQS.Types.ReceiveMessageRequest): Promise<SQS.Types.ReceiveMessageResult> => {
     try {
-      return await this.sqs.receiveMessage(params, errorHandler).promise();
+      return await this.sqs.receiveMessage(params).promise();
     } catch (error) {
       console.error(error);
+      return {};
     }
   };
 }

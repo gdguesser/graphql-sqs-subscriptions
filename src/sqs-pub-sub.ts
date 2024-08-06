@@ -1,21 +1,20 @@
-import aws, { AWSError, SQS } from "aws-sdk";
+import { SQSClient, CreateQueueCommand, DeleteQueueCommand, DeleteMessageCommand, SendMessageCommand, ReceiveMessageCommand, SQSClientConfig } from "@aws-sdk/client-sqs";
+import { fromWebToken } from "@aws-sdk/credential-providers";
 import { PubSubEngine } from "graphql-subscriptions";
 import { PubSubAsyncIterator } from "graphql-subscriptions/dist/pubsub-async-iterator";
 import { v4 as uuid } from "uuid";
-import { errorHandler } from "./utils";
 
 const AWS_SDK_API_VERSION = "2012-11-05";
 const PUB_SUB_MESSAGE_ATTRIBUTE = "SQSPubSubTriggerName";
 
 export class SQSPubSub implements PubSubEngine {
-  public sqs: SQS;
+  public sqs: SQSClient;
   private queueUrl: string;
   private stopped: boolean;
   private triggerName: string;
 
-  public constructor(config: SQS.Types.ClientConfiguration = {}, queueUrl?: string) {
-    aws.config.update(config);
-    this.sqs = new aws.SQS({ apiVersion: AWS_SDK_API_VERSION });
+  public constructor(config: SQSClientConfig = {}, queueUrl?: string) {
+    this.sqs = new SQSClient(config);
     this.queueUrl = queueUrl;
   }
 
@@ -34,7 +33,8 @@ export class SQSPubSub implements PubSubEngine {
     };
 
     try {
-      const result = await this.sqs.createQueue(params).promise();
+      const command = new CreateQueueCommand(params);
+      const result = await this.sqs.send(command);
       this.queueUrl = result.QueueUrl;
     } catch (error) {
       console.error(error);
@@ -49,7 +49,8 @@ export class SQSPubSub implements PubSubEngine {
     };
 
     try {
-      await this.sqs.deleteQueue(params).promise();
+      const command = new DeleteQueueCommand(params);
+      await this.sqs.send(command);
       this.queueUrl = null;
     } catch (error) {
       console.error(error);
@@ -63,7 +64,8 @@ export class SQSPubSub implements PubSubEngine {
     };
 
     try {
-      await this.sqs.deleteMessage(params).promise();
+      const command = new DeleteMessageCommand(params);
+      await this.sqs.send(command);
     } catch (error) {
       console.error(error);
     }
@@ -75,7 +77,7 @@ export class SQSPubSub implements PubSubEngine {
       await this.createQueue();
     }
 
-    const params: SQS.Types.SendMessageRequest = {
+    const params = {
       QueueUrl: this.queueUrl,
       MessageBody: JSON.stringify(payload),
       MessageGroupId: triggerName,
@@ -89,7 +91,8 @@ export class SQSPubSub implements PubSubEngine {
     };
 
     try {
-      await this.sqs.sendMessage(params).promise();
+      const command = new SendMessageCommand(params);
+      await this.sqs.send(command);
     } catch (error) {
       console.error(error);
     }
@@ -143,9 +146,10 @@ export class SQSPubSub implements PubSubEngine {
     setImmediate(() => this.poll(triggerName, onMessage));
   };
 
-  private readonly receiveMessage = async (params: SQS.Types.ReceiveMessageRequest): Promise<SQS.Types.ReceiveMessageResult> => {
+  private readonly receiveMessage = async (params: any): Promise<any> => {
     try {
-      return await this.sqs.receiveMessage(params).promise();
+      const command = new ReceiveMessageCommand(params);
+      return await this.sqs.send(command);
     } catch (error) {
       console.error(error);
       return {};

@@ -45,9 +45,11 @@
     "typescript": "^3.5.3"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.624.0",
+    "@aws-sdk/credential-providers": "^3.624.0",
+    "@aws-sdk/types": "^3.609.0",
     "@types/uuid": "^3.4.6",
-    "aws-sdk": "^2.517.0",
     "graphql-subscriptions": "^1.1.0",
-    "uuid": "^3.3.3"
+    "uuid": "^3.4.0"
   }
 }

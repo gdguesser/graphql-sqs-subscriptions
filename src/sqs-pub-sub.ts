@@ -1,4 +1,4 @@
-import { SQSClient, CreateQueueCommand, DeleteQueueCommand, DeleteMessageCommand, SendMessageCommand, ReceiveMessageCommand, SQSClientConfig } from "@aws-sdk/client-sqs";
+import { SQSClient, CreateQueueCommand, DeleteMessageCommand, SendMessageCommand, ReceiveMessageCommand, SQSClientConfig } from "@aws-sdk/client-sqs";
 import { fromWebToken } from "@aws-sdk/credential-providers";
 import { PubSubEngine } from "graphql-subscriptions";
 import { PubSubAsyncIterator } from "graphql-subscriptions/dist/pubsub-async-iterator";
@@ -10,7 +10,7 @@ const PUB_SUB_MESSAGE_ATTRIBUTE = "SQSPubSubTriggerName";
 export class SQSPubSub implements PubSubEngine {
   public sqs: SQSClient;
   private queueUrl: string;
-  private stopped: boolean;
+  private stopPolling: boolean = false;
   private triggerName: string;
 
   public constructor(config: SQSClientConfig = {}, queueUrl?: string) {
@@ -41,22 +41,6 @@ export class SQSPubSub implements PubSubEngine {
     }
   };
 
-  public deleteQueue = async (): Promise<void> => {
-    if (!this.queueUrl) return;
-
-    const params = {
-      QueueUrl: this.queueUrl
-    };
-
-    try {
-      const command = new DeleteQueueCommand(params);
-      await this.sqs.send(command);
-      this.queueUrl = null;
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   public deleteMessage = async (receiptHandle: string): Promise<void> => {
     const params = {
       QueueUrl: this.queueUrl,
@@ -71,7 +55,6 @@ export class SQSPubSub implements PubSubEngine {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public publish = async (triggerName: string, payload: any): Promise<void> => {
     if (!this.queueUrl) {
       await this.createQueue();
@@ -99,20 +82,17 @@ export class SQSPubSub implements PubSubEngine {
   };
 
   public subscribe = (triggerName: string, onMessage: Function): Promise<number> => {
+    this.stopPolling = false;
     this.poll(triggerName, onMessage);
     return Promise.resolve(1);
   };
 
   public unsubscribe = async (): Promise<void> => {
-    if (!this.stopped) {
-      this.stopped = true;
-      await this.deleteQueue();
-      this.stopped = false;
-    }
+    this.stopPolling = true;
   };
 
   private readonly poll = async (triggerName: string, onMessage: Function): Promise<void> => {
-    if (this.stopped) {
+    if (this.stopPolling) {
       return;
     }
 
@@ -143,7 +123,9 @@ export class SQSPubSub implements PubSubEngine {
       console.error(error);
     }
 
-    setImmediate(() => this.poll(triggerName, onMessage));
+    if (!this.stopPolling) {
+      setImmediate(() => this.poll(triggerName, onMessage));
+    }
   };
 
   private readonly receiveMessage = async (params: any): Promise<any> => {

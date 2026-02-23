@@ -46,8 +46,8 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.624.0",
-    "@aws-sdk/credential-providers": "^3.624.0",
+    "@aws-sdk/client-sqs": "^3.995.0",
+    "@aws-sdk/credential-providers": "^3.995.0",
     "@aws-sdk/types": "^3.609.0",
     "@types/webgl-ext": "^0.0.37",
     "graphql-subscriptions": "^1.1.0",

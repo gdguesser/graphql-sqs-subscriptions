@@ -33,15 +33,14 @@ type Result {
 }
 ```
 
-Create a simple `SQSPubSub` instance, passing in your AWS API keys and region:
+Create an `SQSPubSub` instance with an AWS SDK v3 `SQSClientConfig`. This
+example uses the SDK’s default credential provider chain:
 
 ```js
 import { SQSPubSub } from "graphql-sqs-subscriptions";
 
 const pubsub = new SQSPubSub({
-  accessKeyId: AWS_ACCESS_KEY_ID,
-  secretAccessKey: AWS_SECRET_ACCESS_KEY,
-  region: AWS_REGION
+  region: process.env.AWS_REGION
 });
 ```
 

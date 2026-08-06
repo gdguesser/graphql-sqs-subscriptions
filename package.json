@@ -1,20 +1,34 @@
 {
   "name": "graphql-sqs-subscriptions",
-  "version": "0.0.6",
+  "version": "0.1.0",
+  "description": "AWS SDK v3 SQS PubSubEngine with single-process local fan-out for GraphQL subscriptions",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
   "scripts": {
-    "build": "npm run clean && npx tsc",
-    "clean": "rm -rf './dist'",
-    "dev": "npx nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
-    "format": "npx prettier --write './src/**/*.{ts,tsx,js,jsx}'",
-    "format:check": "npx prettier --check './src/**/*.{ts,tsx,js,jsx}'",
-    "lint": "npx eslint './src/**/*.{ts,tsx,js,jsx}'",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "prepack": "npm run validate",
     "prepare": "npm run build",
-    "test": "npx jest"
+    "test": "vitest run",
+    "test:integration:localstack": "vitest run --config vitest.integration.config.mts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "validate": "npm run test && npm run typecheck && npm run build && npm run lint && npm run format:check"
   },
   "files": [
-    "/dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "keywords": [
     "amazon web services",
@@ -28,29 +42,34 @@
   ],
   "author": "John Flockton",
   "license": "MIT",
-  "repository": "https://github.com/thegreatercurve/graphql-sqs-subscriptions",
-  "devDependencies": {
-    "@types/jest": "^24.0.18",
-    "@types/node": "^22.13.4",
-    "@types/uuid": "^10.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.56.0",
-    "@typescript-eslint/parser": "^8.56.0",
-    "eslint": "^10.0.1",
-    "eslint-config-prettier": "^6.1.0",
-    "eslint-plugin-prettier": "^3.1.0",
-    "jest": "^30.3.0",
-    "nodemon": "^1.19.1",
-    "prettier": "^1.18.2",
-    "ts-jest": "^29.4.9",
-    "ts-node": "^8.3.0",
-    "typescript": "^5.7.3"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gdguesser/graphql-sqs-subscriptions.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gdguesser/graphql-sqs-subscriptions/issues"
+  },
+  "homepage": "https://github.com/gdguesser/graphql-sqs-subscriptions#readme",
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.995.0",
-    "@aws-sdk/credential-providers": "^3.995.0",
-    "@aws-sdk/types": "^3.609.0",
-    "@types/webgl-ext": "^0.0.37",
-    "graphql-subscriptions": "^1.1.0",
-    "uuid": "^14.0.0"
+    "@aws-sdk/client-sqs": "^3.1104.0"
+  },
+  "peerDependencies": {
+    "graphql": "^15.7.2 || ^16.0.0",
+    "graphql-subscriptions": "^2.0.0 || ^3.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.2",
+    "eslint": "^10.8.0",
+    "globals": "^17.9.0",
+    "graphql": "^16.14.2",
+    "graphql-subscriptions": "^3.0.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
   }
 }

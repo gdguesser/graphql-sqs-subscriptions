@@ -1,15 +1,16 @@
 # graphql-sqs-subscriptions
 
+## About this fork
+
+I maintain this fork for a project at Mercedes-Benz.io. It moves the SQS
+integration to AWS SDK v3 and includes the fixes needed by that project.
+
 This package implements the PubSubEngine Interface from the [graphql-subscriptions](https://github.com/apollographql/graphql-subscriptions) package. It allows you to connect your subscriptions manager to an AWS SQS (Simple Queue Service) queue.
 
 ## Installation
 
 ```bash
-npm install graphql-sqs-subscriptions
-
-// or
-
-yarn install graphql-sqs-subscriptions
+npm install github:gdguesser/graphql-sqs-subscriptions#master
 ```
 
 ## Usage
